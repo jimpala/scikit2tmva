@@ -20,21 +20,21 @@ class GradBoostWrapper:
         # Build from root's direct children
         ############
         # <General>
-        general = ElementTree(file="../boilerplate/GeneralInfo.xml").getroot()
+        self.root.append(ElementTree(file="../boilerplate/GeneralInfo.xml").getroot())
         # <Options>
-        options = ElementTree(file="../boilerplate/Options.xml").getroot()
+        self.root.append(ElementTree(file="../boilerplate/Options.xml").getroot())
         # <Variables>
-        variables = self.generate_variables()
+        self.root.append(self.generate_variables())
         # <Spectators>
-        spectators = Element('Spectators', attrib={'NSpec': '0'})
+        self.root.append(Element('Spectators', attrib={'NSpec': '0'}))
         # <Classes>
-        classes = self.generate_classes()
+        self.root.append(self.generate_classes())
         # <Transforms>
-        transforms = Element('Transformations', attrib={'NTransformations': '0'})
+        self.root.append(Element('Transformations', attrib={'NTransformations': '0'}))
         # <MVAPdfs>
-        mva_pdfs = Element('MVAPdfs')
+        self.root.append(Element('MVAPdfs'))
         # <Weights>
-        weights = self.generate_weights()
+        self.root.append(self.generate_weights())
 
         return ElementTree(element=self.root)
 
