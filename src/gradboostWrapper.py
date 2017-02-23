@@ -62,36 +62,45 @@ class GradBoostWrapper:
     # Use tuple stack with (my_index, parent_index), along with list of elements.
     def generate_weights(self):
 
+        # Get the estimator list from AdaBoostClassifier.
         estimator_list = self.bdt.estimators_
         n_estimators = len(estimator_list)
 
+        # The root tag here (direct child of overall document root node) is <Weights>.
         weights = Element('Weights', attrib={'NTrees': '{:d}'.format(n_estimators),
                                              'AnalysisType': '0'})
-        for estimator, i in zip(estimator_list, range(n_estimators)):
 
-            weight = self.bdt.estimator_weights_[i]
+        # Iterate through all the estimators.
+        for estimator, est_i in zip(estimator_list, range(n_estimators)):
+
+            # Create <BinaryTree> tag for current estimator, with weights attribute.
+            weight = self.bdt.estimator_weights_[est_i]
             this_tree = SubElement(weights, 'BinaryTree', attrib={'type': 'DecisionTree',
                                                                   'boostWeight': '{:.13e}'.format(weight),
-                                                                  'itree': '{:d}'.format(i)})
-
+                                                                  'itree': '{:d}'.format(est_i)})
+            # Stack is a queuing system, filled dict 'structs'
+            # with index, parent index, position and depth info.
+            # Tags is a dict to house elements by index number.
             stack = []
-            tags = []
+            tags = dict()
 
+            # Get the underlying tree object for the current estimator.
             t = estimator.tree_
 
-            # Root tag.
-            tags.append(SubElement(this_tree, 'Node', attrib={'pos': 's',
-                                                              'depth': '0',
-                                                              'NCoef': '0',
-                                                              'IVar' : '{:d}'.format(t.feature[0]),
-                                                              'Cut': '{:.17e}'.format(t.threshold[0]),
-                                                              'cType': '0',
-                                                              'res': '{:.17e}'.format(9.9),
-                                                              'rms': '{:17e}'.format(0.0),
-                                                              'purity': '{:17e}'.format(t.impurity[0]),
-                                                              'nType': '0'}))
+            # Create the root <Node> tag
+            tags[0] = (SubElement(this_tree, 'Node', attrib={'pos': 's',
+                                                             'depth': '0',
+                                                             'NCoef': '0',
+                                                             'IVar' : '{:d}'.format(t.feature[0]),
+                                                             'Cut': '{:.17e}'.format(t.threshold[0]),
+                                                             'cType': '0',
+                                                             'res': '{:.17e}'.format(9.9),
+                                                             'rms': '{:17e}'.format(0.0),
+                                                             'purity': '{:17e}'.format(t.impurity[0]),
+                                                             'nType': '0'}))
+            # Root <Node>'s children gets the stack rolling.
             stack.append({'index': t.children_left[0],
-                          'parent_index': 0,
+                          'parent_i': 0,
                           'pos': 'l',
                           'depth': 1})
             stack.append({'index': t.children_right[0],
@@ -99,42 +108,57 @@ class GradBoostWrapper:
                           'pos': 'r',
                           'depth': 1})
 
+            # Iterate through each new tree node in stack.
             for node in stack:
+
+                # Get the main feature info for this node.
                 feature = t.feature[node['index']]
                 cut = t.threshold[node['index']]
                 impurity = t.impurity[node['index']]
 
-                l_child_i = t.children_left
-                r_child_i = t.children_right
+                l_child_i = t.children_left[node['index']]
+                r_child_i = t.children_right[node['index']]
 
+                # Children L/R value of -1 corresponds to no L or R children for this node.
+                # If both are -1, this is a leaf node, and this clause is entered.
                 if l_child_i == -1 and r_child_i == -1:
-                    feature = -1
-                    n_type = 0
-                else:
+                    feature = -1  # IVar value is -1 for leaf in TMVA.
+
+                    # Value parameter is an 1x2 ndarray with [[prob_back, prob_sig]].
+                    # Using enumerate, find out which probability is bigger, then
+                    # assign that as the classification of this leaf.
                     sb_probs = t.value[node['index']][0]
                     s_or_b = [a for a, b in enumerate(sb_probs) if b == max(sb_probs)][0]
                     n_type = 1 if s_or_b == 1 else -1
 
-                tags.append(SubElement(tags[node['parent_i']], 'Node', attrib={'pos': '{}'.format(node['pos']),
-                                                                               'depth': '0',
-                                                                               'NCoef': '0',
-                                                                               'IVar': '{:d}'.format(feature),
-                                                                               'Cut': '{:.17e}'.format(cut),
-                                                                               'cType': '0',
-                                                                               'res': '{:.17e}'.format(9.9),
-                                                                               'rms': '{:17e}'.format(0.0),
-                                                                               'purity': '{:17e}'.format(impurity),
-                                                                               'nType': '{:d}'.format(n_type)}))
+                # If not a leaf, classification is zero (n/a).
+                else:
+                    n_type = 0
+
+                # Add the current tag to the tags dict for this tree.
+                tags[node['index']] = (SubElement(tags[node['parent_i']], 'Node', attrib={'pos': '{}'.format(node['pos']),
+                                                                                          'depth': '0',
+                                                                                          'NCoef': '0',
+                                                                                          'IVar': '{:d}'.format(feature),
+                                                                                          'Cut': '{:.17e}'.format(cut),
+                                                                                          'cType': '0',
+                                                                                          'res': '{:.17e}'.format(9.9),
+                                                                                          'rms': '{:17e}'.format(0.0),
+                                                                                          'purity': '{:17e}'.format(impurity),
+                                                                                          'nType': '{:d}'.format(n_type)}))
+
+                # Append to stack any children.
                 if l_child_i != -1:
                     stack.append({'index': l_child_i,
-                                  'parent_index': node['index'],
+                                  'parent_i': node['index'],
                                   'pos': 'l',
                                   'depth': node['depth'] + 1})
                 if r_child_i != -1:
                     stack.append({'index': r_child_i,
-                                  'parent_index': node['index'],
+                                  'parent_i': node['index'],
                                   'pos': 'r',
                                   'depth': node['depth'] + 1})
+
         return weights
 
 
