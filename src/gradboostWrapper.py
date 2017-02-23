@@ -1,6 +1,7 @@
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.tree import DecisionTreeClassifier
 from xml.etree.ElementTree import *
+import sklearn.tree
 
 
 class GradBoostWrapper:
@@ -74,10 +75,14 @@ class GradBoostWrapper:
         for estimator, est_i in zip(estimator_list, range(n_estimators)):
 
             # Create <BinaryTree> tag for current estimator, with weights attribute.
-            weight = self.bdt.estimator_weights_[est_i]
+            this_weight = self.bdt.estimator_weights_[est_i]
             this_tree = SubElement(weights, 'BinaryTree', attrib={'type': 'DecisionTree',
-                                                                  'boostWeight': '{:.13e}'.format(weight),
+                                                                  'boostWeight': '{:.13e}'.format(this_weight),
                                                                   'itree': '{:d}'.format(est_i)})
+
+            # with open("test.dot", 'w') as f:
+            #     f = sklearn.tree.export_graphviz(estimator, out_file=f)
+
             # Stack is a queuing system, filled dict 'structs'
             # with index, parent index, position and depth info.
             # Tags is a dict to house elements by index number.
@@ -109,15 +114,15 @@ class GradBoostWrapper:
                           'depth': 1})
 
             # Iterate through each new tree node in stack.
-            for node in stack:
+            while stack:
 
                 # Get the main feature info for this node.
-                feature = t.feature[node['index']]
-                cut = t.threshold[node['index']]
-                impurity = t.impurity[node['index']]
+                feature = t.feature[stack[0]['index']]
+                cut = t.threshold[stack[0]['index']]
+                impurity = t.impurity[stack[0]['index']]
 
-                l_child_i = t.children_left[node['index']]
-                r_child_i = t.children_right[node['index']]
+                l_child_i = t.children_left[stack[0]['index']]
+                r_child_i = t.children_right[stack[0]['index']]
 
                 # Children L/R value of -1 corresponds to no L or R children for this node.
                 # If both are -1, this is a leaf node, and this clause is entered.
@@ -127,7 +132,7 @@ class GradBoostWrapper:
                     # Value parameter is an 1x2 ndarray with [[prob_back, prob_sig]].
                     # Using enumerate, find out which probability is bigger, then
                     # assign that as the classification of this leaf.
-                    sb_probs = t.value[node['index']][0]
+                    sb_probs = t.value[stack[0]['index']][0]
                     s_or_b = [a for a, b in enumerate(sb_probs) if b == max(sb_probs)][0]
                     n_type = 1 if s_or_b == 1 else -1
 
@@ -136,28 +141,32 @@ class GradBoostWrapper:
                     n_type = 0
 
                 # Add the current tag to the tags dict for this tree.
-                tags[node['index']] = (SubElement(tags[node['parent_i']], 'Node', attrib={'pos': '{}'.format(node['pos']),
-                                                                                          'depth': '0',
-                                                                                          'NCoef': '0',
-                                                                                          'IVar': '{:d}'.format(feature),
-                                                                                          'Cut': '{:.17e}'.format(cut),
-                                                                                          'cType': '0',
-                                                                                          'res': '{:.17e}'.format(9.9),
-                                                                                          'rms': '{:17e}'.format(0.0),
-                                                                                          'purity': '{:17e}'.format(impurity),
-                                                                                          'nType': '{:d}'.format(n_type)}))
+                tags[stack[0]['index']] = (SubElement(tags[stack[0]['parent_i']], 'Node',
+                                                      attrib={'pos': '{}'.format(stack[0]['pos']),
+                                                              'depth': '{:d}'.format(stack[0]['depth']),
+                                                              'NCoef': '0',
+                                                              'IVar': '{:d}'.format(feature),
+                                                              'Cut': '{:.17e}'.format(cut),
+                                                              'cType': '0',
+                                                              'res': '{:.17e}'.format(9.9),
+                                                              'rms': '{:17e}'.format(0.0),
+                                                              'purity': '{:17e}'.format(impurity),
+                                                              'nType': '{:d}'.format(n_type)}))
 
                 # Append to stack any children.
                 if l_child_i != -1:
                     stack.append({'index': l_child_i,
-                                  'parent_i': node['index'],
+                                  'parent_i': stack[0]['index'],
                                   'pos': 'l',
-                                  'depth': node['depth'] + 1})
+                                  'depth': stack[0]['depth'] + 1})
                 if r_child_i != -1:
                     stack.append({'index': r_child_i,
-                                  'parent_i': node['index'],
+                                  'parent_i': stack[0]['index'],
                                   'pos': 'r',
-                                  'depth': node['depth'] + 1})
+                                  'depth': stack[0]['depth'] + 1})
+
+                # Pop front element of stack.
+                stack.pop(0)
 
         return weights
 
