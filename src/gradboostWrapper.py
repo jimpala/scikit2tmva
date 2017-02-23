@@ -20,22 +20,31 @@ class GradBoostWrapper:
 
         # Build from root's direct children
         ############
+        dump(self.root)
         # <General>
         self.root.append(ElementTree(file="../boilerplate/GeneralInfo.xml").getroot())
+        dump(self.root)
         # <Options>
         self.root.append(ElementTree(file="../boilerplate/Options.xml").getroot())
+        dump(self.root)
         # <Variables>
         self.root.append(self.generate_variables())
+        dump(self.root)
         # <Spectators>
         self.root.append(Element('Spectators', attrib={'NSpec': '0'}))
+        dump(self.root)
         # <Classes>
         self.root.append(self.generate_classes())
+        dump(self.root)
         # <Transforms>
         self.root.append(Element('Transformations', attrib={'NTransformations': '0'}))
+        dump(self.root)
         # <MVAPdfs>
         self.root.append(Element('MVAPdfs'))
+        dump(self.root)
         # <Weights>
         self.root.append(self.generate_weights())
+        dump(self.root)
 
         return ElementTree(element=self.root)
 
@@ -57,7 +66,7 @@ class GradBoostWrapper:
 
     # For now use boilerplate.
     def generate_classes(self):
-        return ElementTree(file="../boilerplate/Classes.xml")
+        return ElementTree(file="../boilerplate/Classes.xml").getroot()
 
 
     # Use tuple stack with (my_index, parent_index), along with list of elements.
@@ -77,7 +86,7 @@ class GradBoostWrapper:
             # Create <BinaryTree> tag for current estimator, with weights attribute.
             this_weight = self.bdt.estimator_weights_[est_i]
             this_tree = SubElement(weights, 'BinaryTree', attrib={'type': 'DecisionTree',
-                                                                  'boostWeight': '{:.13e}'.format(this_weight),
+                                                                  'boostWeight': '{:.8e}'.format(this_weight),
                                                                   'itree': '{:d}'.format(est_i)})
 
             # with open("test.dot", 'w') as f:
@@ -97,11 +106,11 @@ class GradBoostWrapper:
                                                              'depth': '0',
                                                              'NCoef': '0',
                                                              'IVar' : '{:d}'.format(t.feature[0]),
-                                                             'Cut': '{:.17e}'.format(t.threshold[0]),
+                                                             'Cut': '{:.8e}'.format(t.threshold[0]),
                                                              'cType': '0',
-                                                             'res': '{:.17e}'.format(9.9),
-                                                             'rms': '{:17e}'.format(0.0),
-                                                             'purity': '{:17e}'.format(t.impurity[0]),
+                                                             'res': '{:.8e}'.format(9.9),
+                                                             'rms': '{:.4e}'.format(0.0),
+                                                             'purity': '{:8e}'.format(t.impurity[0]),
                                                              'nType': '0'}))
             # Root <Node>'s children gets the stack rolling.
             stack.append({'index': t.children_left[0],
@@ -146,11 +155,11 @@ class GradBoostWrapper:
                                                               'depth': '{:d}'.format(stack[0]['depth']),
                                                               'NCoef': '0',
                                                               'IVar': '{:d}'.format(feature),
-                                                              'Cut': '{:.17e}'.format(cut),
+                                                              'Cut': '{:.8e}'.format(cut),
                                                               'cType': '0',
-                                                              'res': '{:.17e}'.format(9.9),
-                                                              'rms': '{:17e}'.format(0.0),
-                                                              'purity': '{:17e}'.format(impurity),
+                                                              'res': '{:.8e}'.format(9.9),
+                                                              'rms': '{:.4e}'.format(0.0),
+                                                              'purity': '{:.8e}'.format(impurity),
                                                               'nType': '{:d}'.format(n_type)}))
 
                 # Append to stack any children.
